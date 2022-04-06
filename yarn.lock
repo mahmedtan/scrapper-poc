@@ -911,7 +911,7 @@ media-typer@0.3.0:
   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
   integrity sha1-hxDXrwqmJvj/+hzgAWhUUmMlV0g=
 
-merge-descriptors@1.0.1:
+merge-descriptors@1.0.1, merge-descriptors@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/merge-descriptors/-/merge-descriptors-1.0.1.tgz#b00aaa556dd8b44568150ec9d1b953f3f90cbb61"
   integrity sha1-sAqqVW3YtEVoFQ7J0blT8/kMu2E=
@@ -1385,6 +1385,13 @@ through@^2.3.8:
   version "2.3.8"
   resolved "https://registry.yarnpkg.com/through/-/through-2.3.8.tgz#0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5"
   integrity sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+
+tiktok-app-api@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/tiktok-app-api/-/tiktok-app-api-1.4.1.tgz#9ce117509b169fa0d51a1ee62ff6a523c49b354c"
+  integrity sha512-mJRrkHXKdgblTsHLOPLw7cOVwC1ovp0amlXp8HcclGmBEPhtCYF1ReUtM3Annt6CDJbNsc8FUJPuKpyJCs0wJQ==
+  dependencies:
+    merge-descriptors "^1.0.1"
 
 to-readable-stream@^1.0.0:
   version "1.0.0"
