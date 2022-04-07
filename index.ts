@@ -1,9 +1,9 @@
 import axios from "axios";
-import { randomUUID } from "crypto";
+import * as cheerio from "cheerio";
 import express from "express";
-import tiktok from "tiktok-app-api";
+import { mapSeries } from "async";
 
-import puppeteer, { Page } from "puppeteer";
+import puppeteer, { ElementHandle, Page } from "puppeteer";
 const app = express();
 
 const requestHeaders = {
@@ -38,6 +38,8 @@ app.get("/video/:id", async (req, res) => {
       { headers: requestHeaders }
     );
 
+    console.log(videoPayload.data);
+
     if (!Object.keys(videoPayload.data.itemInfo?.itemStruct).length) {
       res.status(404).json({ message: "User Not Found!" });
     }
@@ -49,61 +51,43 @@ app.get("/video/:id", async (req, res) => {
 
 app.get("/videos/:id", async (req, res) => {
   const { id } = req.params;
-  const { limit = 10 } = req.query;
-  const posts: any = [];
+  const { limit = 30 } = req.query;
 
   try {
     const browser = await puppeteer.launch({
       defaultViewport: null,
-      // headless: false,
     });
-
     const page = await browser.newPage();
 
     await page.goto(`https://www.tiktok.com/@${id}`);
 
-    res.json({
-      postCount: posts.slice(0, limit).length,
-      posts: posts.slice(0, limit),
-    });
-  } catch (error) {}
-});
+    await scrollPage(page, Math.ceil(+limit / 30 - 1));
 
-app.get("/tag/:id", async (req, res) => {
-  const { id } = req.params;
+    const elements = await page.$$(".tiktok-x6y88p-DivItemContainerV2");
 
-  const posts: any = [];
+    const videos = await mapSeries(
+      elements,
+      async (item: ElementHandle, callback: any) => {
+        const href = await item.$eval("a", (e) => e.getAttribute("href"));
+        const views = await item.$eval(
+          "[data-e2e='video-views']",
+          (e) => e.textContent
+        );
+        const title = await item.$eval(
+          ".tiktok-1wrhn5c-AMetaCaptionLine",
+          (e) => e.getAttribute("title")
+        );
 
-  if (!id)
-    return res
-      .status(400)
-      .json({ statusCode: 400, type: "error", message: "userId not provided" });
+        callback(null, {
+          title,
+          views,
+          href,
+          id: href?.replace(`https://www.tiktok.com/@${id}/video/`, ""),
+        });
+      }
+    );
 
-  try {
-    const browser = await puppeteer.launch({
-      defaultViewport: null,
-    });
-    const page = await browser.newPage();
-
-    page.on("response", async (event: any) => {
-      try {
-        if (
-          event._headers["content-type"] === "application/json; charset=utf-8"
-        ) {
-          const val = await event.json();
-          const postsPaginated = val?.itemList;
-          postsPaginated && posts.push(...postsPaginated);
-        }
-      } catch (err) {}
-    });
-
-    await page.goto(`https://www.tiktok.com/tag/${id}`, {
-      waitUntil: "networkidle0",
-    });
-
-    await scrollPage(page, 10);
-
-    res.json({ postCount: posts.length, posts });
+    res.json({ videos });
   } catch (error) {
     console.log(error);
   }
@@ -116,7 +100,7 @@ async function scrollPage(page: Page, length: number) {
 
     let count = 0;
 
-    while (count <= length) {
+    while (count < length) {
       previousHeight = await page.evaluate("document.body.scrollHeight");
 
       await page.evaluate("window.scrollTo(0, document.body.scrollHeight)");
@@ -127,8 +111,50 @@ async function scrollPage(page: Page, length: number) {
       await page.waitForTimeout(scrollDelay);
 
       count++;
+      console.log("SCROLLED");
     }
   } catch (e) {}
 }
+
+app.get("/tag/:id", async (req, res) => {
+  const { id } = req.params;
+  const { limit = 10, cursor = 0 } = req.query;
+
+  if (limit > 30) res.status(400).json({ message: "Limit too large!" });
+
+  try {
+    const tagHTML = await axios.get(`https://www.tiktok.com/tag/${id}`);
+
+    const $ = cheerio.load(tagHTML.data);
+
+    const challengeId = $("[property='al:ios:url']").attr("content")?.slice(30);
+
+    const tagInfo = (
+      await axios.get(
+        `https://m.tiktok.com/api/challenge/detail/?agent_user=&challengeId=${challengeId}`,
+        { headers: requestHeaders }
+      )
+    ).data;
+
+    const tagPostsResponse = await axios.get(
+      `https://m.tiktok.com/api/challenge/item_list/?aid=1988&user_agent=&challengeID=${challengeId}&count=${limit}&cursor=${cursor}`,
+      { headers: requestHeaders }
+    );
+
+    if (tagPostsResponse.status === 400) {
+      res.status(400).json({ message: "Bad Request" });
+    }
+
+    const tagPosts = tagPostsResponse.data.itemList;
+    res.json({
+      info: tagInfo,
+      videoCount: tagPosts.length,
+      videos: tagPosts,
+      nextCursor: +tagPostsResponse.data.cursor,
+    });
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 app.listen(3000);
