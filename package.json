@@ -1,4 +1,5 @@
 {
+  "name": "scrapper-poc",
   "scripts": {
     "start": "nodemon index.ts"
   },
